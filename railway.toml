@@ -1,0 +1,2 @@
+[build]
+buildCommand = "npm install --prefix server && npm install --prefix client --include=dev && npm run build:client"
