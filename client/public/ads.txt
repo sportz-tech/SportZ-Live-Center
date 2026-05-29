@@ -1,0 +1,3 @@
+# SportZ Google AdSense Authorized Digital Sellers (ads.txt) file
+# Format: <Authority Domain>, <Publisher Account ID>, <Account Relationship>, <Certification Authority ID>
+google.com, pub-4370867821860158, DIRECT, f08c47fec0942fa0
