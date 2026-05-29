@@ -1,0 +1,19 @@
+{
+  "name": "sportz-live-center",
+  "version": "1.0.0",
+  "description": "SportZ Live Football & Cricket Broadcast Center - Production Monolithic Setup",
+  "main": "server/server.js",
+  "scripts": {
+    "install:server": "npm install --prefix server",
+    "install:client": "npm install --prefix client",
+    "install-all": "npm run install:server && npm run install:client",
+    "build:client": "npm run build --prefix client",
+    "build": "npm run build:client",
+    "start": "node server/server.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "author": "sportz-tech",
+  "license": "ISC"
+}
