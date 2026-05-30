@@ -1,11 +1,26 @@
 {
-  "name": "client",
-  "private": true,
-  "version": "0.0.0",
+  "name": "sportz-premium-live-widgets",
+  "private": false,
+  "version": "1.0.2",
   "type": "module",
+  "description": "Premium Sports Visualizer Widgets Suite",
+  "main": "./dist-lib/sportz-widget.umd.js",
+  "module": "./dist-lib/sportz-widget.es.js",
+  "style": "./dist-lib/client.css",
+  "exports": {
+    ".": {
+      "import": "./dist-lib/sportz-widget.es.js",
+      "require": "./dist-lib/sportz-widget.umd.js"
+    },
+    "./style.css": "./dist-lib/client.css"
+  },
+  "files": [
+    "dist-lib"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:lib": "vite build --config vite.config.lib.js",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -13,6 +28,10 @@
     "lucide-react": "^1.17.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

@@ -7,7 +7,7 @@ const path = require('path');
 const mongoose = require('mongoose');
 require('dotenv').config();
 
-const { mockFootballMatches, mockCricketMatches } = require('./mockData');
+const { mockFootballMatches, mockCricketMatches, mockWorldCupStandings, mockWorldCupTopscorers } = require('./mockData');
 
 const app = express();
 app.use(cors());
@@ -687,6 +687,537 @@ app.get('/api/config', (req, res) => {
   });
 });
 
+// Get Football Tournament Standings (Real-time query with mock fallback)
+app.get('/api/football/standings', async (req, res) => {
+  const API_TOKEN = process.env.SPORTMONKS_API_TOKEN;
+  const seasonId = req.query.seasonId || '24250'; // Default tournament season placeholder
+
+  if (API_TOKEN) {
+    try {
+      const url = `https://api.sportmonks.com/v3/football/standings/seasons/${seasonId}?api_token=${API_TOKEN}&include=standing.team`;
+      const response = await fetch(url);
+      if (response.ok) {
+        const json = await response.ok ? await response.json() : null;
+        if (json && json.data && json.data.length > 0) {
+          return res.json(json.data);
+        }
+      }
+    } catch (err) {
+      console.warn("Sportmonks Standings fetch failed, falling back to mock:", err.message);
+    }
+  }
+
+  // Fallback to gorgeous local mock World Cup standings
+  res.json(mockWorldCupStandings);
+});
+
+// Get Football Tournament Topscorers (Real-time query with mock fallback)
+app.get('/api/football/topscorers', async (req, res) => {
+  const API_TOKEN = process.env.SPORTMONKS_API_TOKEN;
+  const seasonId = req.query.seasonId || '24250';
+
+  if (API_TOKEN) {
+    try {
+      const url = `https://api.sportmonks.com/v3/football/topscorers/seasons/${seasonId}?api_token=${API_TOKEN}&include=player;team`;
+      const response = await fetch(url);
+      if (response.ok) {
+        const json = await response.ok ? await response.json() : null;
+        if (json && json.data && json.data.length > 0) {
+          return res.json(json.data);
+        }
+      }
+    } catch (err) {
+      console.warn("Sportmonks Topscorers fetch failed, falling back to mock:", err.message);
+    }
+  }
+
+  // Fallback to local mock World Cup topscorers list
+  res.json(mockWorldCupTopscorers);
+});
+
+
+// --- DYNAMIC SETTINGS CONFIGURATIONS ---
+const SETTINGS_FILE = path.join(__dirname, 'settings.json');
+
+function readSettings() {
+  if (!fs.existsSync(SETTINGS_FILE)) {
+    const defaultSettings = {
+      adsEnabled: true,
+      adClient: 'ca-pub-5739201948',
+      adSlots: {
+        sidebar: '5739201948',
+        header: '9283748291'
+      },
+      supportEmail: 'cricbuzz756@gmail.com'
+    };
+    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(defaultSettings, null, 2));
+    return defaultSettings;
+  }
+  try {
+    const data = fs.readFileSync(SETTINGS_FILE, 'utf8');
+    const parsed = JSON.parse(data);
+    if (!parsed.supportEmail) {
+      parsed.supportEmail = 'cricbuzz756@gmail.com';
+    }
+    return parsed;
+  } catch (err) {
+    return {
+      adsEnabled: true,
+      adClient: 'ca-pub-5739201948',
+      adSlots: {
+        sidebar: '5739201948',
+        header: '9283748291'
+      },
+      supportEmail: 'cricbuzz756@gmail.com'
+    };
+  }
+}
+
+function writeSettings(settings) {
+  try {
+    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2));
+    return true;
+  } catch (err) {
+    return false;
+  }
+}
+
+const LICENSES_FILE = path.join(__dirname, 'licenses.json');
+
+function readLicenses() {
+  if (!fs.existsSync(LICENSES_FILE)) {
+    const defaultLicenses = [
+      'SZ-PRO-2026-GOLD',
+      'premium_partner_2026',
+      'sportz_vip_membership'
+    ];
+    fs.writeFileSync(LICENSES_FILE, JSON.stringify(defaultLicenses, null, 2));
+    return defaultLicenses;
+  }
+  try {
+    const data = fs.readFileSync(LICENSES_FILE, 'utf8');
+    return JSON.parse(data);
+  } catch (err) {
+    return [
+      'SZ-PRO-2026-GOLD',
+      'premium_partner_2026',
+      'sportz_vip_membership'
+    ];
+  }
+}
+
+function writeLicenses(licenses) {
+  try {
+    fs.writeFileSync(LICENSES_FILE, JSON.stringify(licenses, null, 2));
+    return true;
+  } catch (err) {
+    return false;
+  }
+}
+
+app.get('/api/settings', (req, res) => {
+  const licenseKey = req.query.licenseKey;
+  const currentSettings = readSettings();
+  const activeLicenses = readLicenses();
+
+  if (licenseKey && activeLicenses.includes(licenseKey)) {
+    res.json({
+      ...currentSettings,
+      adsEnabled: false,
+      status: 'premium',
+      licenseValid: true
+    });
+  } else {
+    res.json({
+      ...currentSettings,
+      status: licenseKey ? 'invalid' : 'free',
+      licenseValid: false
+    });
+  }
+});
+
+// --- USER PERSISTENT STORAGE ENGINE ---
+const USERS_FILE = path.join(__dirname, 'users.json');
+
+function readUsers() {
+  if (!fs.existsSync(USERS_FILE)) {
+    const defaultUsers = [
+      {
+        id: "u-default",
+        name: "Jane Developer",
+        email: "developer@sportz.com",
+        password: "password123",
+        country: "Germany",
+        phone: "+49 170 1234567",
+        address: "Hauptstr. 12, Berlin",
+        status: "pro",
+        licenseKey: "SZ-PRO-2026-GOLD"
+      }
+    ];
+    fs.writeFileSync(USERS_FILE, JSON.stringify(defaultUsers, null, 2));
+    return defaultUsers;
+  }
+  try {
+    const data = fs.readFileSync(USERS_FILE, 'utf8');
+    return JSON.parse(data);
+  } catch (err) {
+    return [];
+  }
+}
+
+function writeUsers(users) {
+  try {
+    fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
+    return true;
+  } catch (err) {
+    return false;
+  }
+}
+
+// --- USER AUTHENTICATION ENDPOINTS ---
+
+// Register a new developer account
+app.post('/api/auth/register', (req, res) => {
+  const { name, email, password, country, phone, address } = req.body;
+
+  if (!name || !email || !password) {
+    return res.status(400).json({ error: "Missing required fields (Name, Email, Password)." });
+  }
+
+  const users = readUsers();
+  const exists = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+  if (exists) {
+    return res.status(400).json({ error: "An account with this email already exists." });
+  }
+
+  const newUser = {
+    id: `u-${Date.now()}`,
+    name,
+    email: email.toLowerCase(),
+    password,
+    country: country || '',
+    phone: phone || '',
+    address: address || '',
+    status: 'normal',
+    licenseKey: null
+  };
+
+  users.push(newUser);
+  if (writeUsers(users)) {
+    res.json({ success: true, user: { id: newUser.id, name: newUser.name, email: newUser.email, status: newUser.status } });
+  } else {
+    res.status(500).json({ error: "Failed to write user account to database." });
+  }
+});
+
+// Login developer account
+app.post('/api/auth/login', (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ error: "Missing credentials." });
+  }
+
+  const users = readUsers();
+  const user = users.find(u => u.email.toLowerCase() === email.toLowerCase() && u.password === password);
+
+  if (user) {
+    res.json({
+      success: true,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        country: user.country,
+        phone: user.phone,
+        address: user.address,
+        status: user.status,
+        licenseKey: user.licenseKey
+      }
+    });
+  } else {
+    res.status(401).json({ error: "Invalid email or password." });
+  }
+});
+
+// PayPal upgrade developer account to Premium Pro
+app.post('/api/auth/upgrade', (req, res) => {
+  const { userId } = req.body;
+
+  if (!userId) {
+    return res.status(400).json({ error: "Missing User ID for upgrade." });
+  }
+
+  const users = readUsers();
+  const userIdx = users.findIndex(u => u.id === userId);
+  if (userIdx === -1) {
+    return res.status(404).json({ error: "User not found." });
+  }
+
+  // Generate unique premium license key
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  const genChunk = (len) => Array.from({ length: len }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  const newKey = `SZ-PRO-${genChunk(4)}-${genChunk(4)}`;
+
+  // Update user in users.json
+  users[userIdx].status = 'pro';
+  users[userIdx].licenseKey = newKey;
+
+  // Add to active licenses globally in licenses.json
+  const activeLicenses = readLicenses();
+  activeLicenses.push(newKey);
+
+  if (writeUsers(users) && writeLicenses(activeLicenses)) {
+    res.json({
+      success: true,
+      user: {
+        id: users[userIdx].id,
+        name: users[userIdx].name,
+        email: users[userIdx].email,
+        country: users[userIdx].country,
+        phone: users[userIdx].phone,
+        address: users[userIdx].address,
+        status: users[userIdx].status,
+        licenseKey: users[userIdx].licenseKey
+      }
+    });
+  } else {
+    res.status(500).json({ error: "Failed to persist upgrade changes." });
+  }
+});
+
+// --- DYNAMIC SUPPORT & CONTACT QUERY ENGINE ---
+const SUPPORT_QUERIES_FILE = path.join(__dirname, 'support_queries.json');
+
+function readSupportQueries() {
+  try {
+    if (!fs.existsSync(SUPPORT_QUERIES_FILE)) {
+      fs.writeFileSync(SUPPORT_QUERIES_FILE, JSON.stringify([], null, 2));
+    }
+    return JSON.parse(fs.readFileSync(SUPPORT_QUERIES_FILE, 'utf8'));
+  } catch (e) {
+    return [];
+  }
+}
+
+function writeSupportQueries(data) {
+  try {
+    fs.writeFileSync(SUPPORT_QUERIES_FILE, JSON.stringify(data, null, 2));
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+// Register support queries submitted by logged in developers
+app.post('/api/support/query', (req, res) => {
+  const { userId, name, email, subject, message } = req.body;
+
+  if (!userId || !subject || !message) {
+    return res.status(400).json({ error: "Missing required support query parameters." });
+  }
+
+  const settings = readSettings();
+  const supportEmail = settings.supportEmail || 'cricbuzz756@gmail.com';
+
+  const queries = readSupportQueries();
+  const newQuery = {
+    id: `TKT-${Date.now()}`,
+    userId,
+    name: name || 'Developer',
+    email: email || 'N/A',
+    subject,
+    message,
+    status: 'pending',
+    forwardedTo: supportEmail,
+    timestamp: new Date().toISOString()
+  };
+
+  // Simulate SMTP Mail System dispatch to support inbox
+  console.log(`\n======================================================`);
+  console.log(`📬 [SMTP MAIL SYSTEM] FORWARDING SUPPORT QUERY`);
+  console.log(`------------------------------------------------------`);
+  console.log(`From: support@sportz-widgets.com`);
+  console.log(`To: ${supportEmail}`);
+  console.log(`Subject: [Support Ticket ${newQuery.id}] ${newQuery.subject}`);
+  console.log(`Developer Name: ${newQuery.name}`);
+  console.log(`Developer Email: ${newQuery.email}`);
+  console.log(`Message Content:\n"${newQuery.message}"`);
+  console.log(`======================================================\n`);
+
+  queries.push(newQuery);
+
+  if (writeSupportQueries(queries)) {
+    res.json({
+      success: true,
+      message: "Your support query has been logged. Our response team will review it shortly."
+    });
+  } else {
+    res.status(500).json({ error: "Failed to save support query in the database." });
+  }
+});
+
+// --- ADMINISTRATIVE AUDITING & USER REGISTRY OVERRIDES ---
+
+// List all submitted developer support queries
+app.get('/api/admin/support/queries', (req, res) => {
+  res.json(readSupportQueries());
+});
+
+// Update support query details (assigned assistant forwardedTo / status)
+app.post('/api/admin/support/queries/update', (req, res) => {
+  const { id, forwardedTo, status } = req.body;
+  if (!id) {
+    return res.status(400).json({ error: "Missing query ID" });
+  }
+
+  const queries = readSupportQueries();
+  const idx = queries.findIndex(q => q.id === id);
+  if (idx === -1) {
+    return res.status(404).json({ error: "Support query not found" });
+  }
+
+  if (forwardedTo !== undefined) {
+    queries[idx].forwardedTo = forwardedTo;
+  }
+  if (status !== undefined) {
+    queries[idx].status = status;
+  }
+
+  if (writeSupportQueries(queries)) {
+    res.json({ success: true, query: queries[idx] });
+  } else {
+    res.status(500).json({ error: "Failed to update support query" });
+  }
+});
+
+// List all registered developer accounts
+app.get('/api/admin/users', (req, res) => {
+  const users = readUsers();
+  // Sanitize passwords out of response
+  const sanitized = users.map(u => ({
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    country: u.country,
+    phone: u.phone,
+    address: u.address,
+    status: u.status,
+    licenseKey: u.licenseKey
+  }));
+  res.json(sanitized);
+});
+
+// List all registered license keys (active premium keys registry)
+app.get('/api/admin/licenses', (req, res) => {
+  res.json(readLicenses());
+});
+
+// Admin manual license creation
+app.post('/api/admin/licenses/create', (req, res) => {
+  const { customSuffix } = req.body;
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  const genChunk = (len) => Array.from({ length: len }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  
+  const suffix = customSuffix ? customSuffix.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8) : genChunk(4);
+  const newKey = `SZ-PRO-${suffix}-${genChunk(4)}`;
+
+  const activeLicenses = readLicenses();
+  activeLicenses.push(newKey);
+
+  if (writeLicenses(activeLicenses)) {
+    res.json({ success: true, licenseKey: newKey });
+  } else {
+    res.status(500).json({ error: "Failed to record manual key." });
+  }
+});
+
+// Admin manual license key revocation
+app.post('/api/admin/licenses/revoke', (req, res) => {
+  const { licenseKey } = req.body;
+
+  if (!licenseKey) {
+    return res.status(400).json({ error: "Missing license key to revoke." });
+  }
+
+  // 1. Remove from active licenses database
+  let activeLicenses = readLicenses();
+  activeLicenses = activeLicenses.filter(k => k !== licenseKey);
+
+  // 2. Scan and downgrade any user using this license key in users.json
+  const users = readUsers();
+  users.forEach(u => {
+    if (u.licenseKey === licenseKey) {
+      u.status = 'normal';
+      u.licenseKey = null;
+    }
+  });
+
+  if (writeLicenses(activeLicenses) && writeUsers(users)) {
+    broadcast('SETTINGS_UPDATE', readSettings()); // Force clear ad triggers
+    res.json({ success: true, message: "License key successfully revoked." });
+  } else {
+    res.status(500).json({ error: "Failed to persist revocation." });
+  }
+});
+
+// Admin manual user status toggle
+app.post('/api/admin/users/toggle-status', (req, res) => {
+  const { userId } = req.body;
+
+  if (!userId) {
+    return res.status(400).json({ error: "Missing user ID to toggle." });
+  }
+
+  const users = readUsers();
+  const idx = users.findIndex(u => u.id === userId);
+  if (idx === -1) {
+    return res.status(404).json({ error: "User not found." });
+  }
+
+  const activeLicenses = readLicenses();
+
+  if (users[idx].status === 'pro') {
+    // Downgrade to Normal
+    const oldKey = users[idx].licenseKey;
+    users[idx].status = 'normal';
+    users[idx].licenseKey = null;
+
+    if (oldKey) {
+      const filtered = activeLicenses.filter(k => k !== oldKey);
+      writeLicenses(filtered);
+    }
+  } else {
+    // Upgrade to Pro
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    const genChunk = (len) => Array.from({ length: len }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+    const newKey = `SZ-PRO-${genChunk(4)}-${genChunk(4)}`;
+
+    users[idx].status = 'pro';
+    users[idx].licenseKey = newKey;
+    activeLicenses.push(newKey);
+    writeLicenses(activeLicenses);
+  }
+
+  if (writeUsers(users)) {
+    res.json({ success: true, user: users[idx] });
+  } else {
+    res.status(500).json({ error: "Failed to toggle user subscription level." });
+  }
+});
+
+app.post('/api/settings', (req, res) => {
+  const currentSettings = readSettings();
+  const mergedSettings = { ...currentSettings, ...req.body };
+  if (writeSettings(mergedSettings)) {
+    broadcast('SETTINGS_UPDATE', mergedSettings);
+    res.json({ success: true, settings: mergedSettings });
+  } else {
+    res.status(500).json({ error: "Failed to write settings" });
+  }
+});
+
+
 // Get polls
 app.get('/api/polls', async (req, res) => {
   try {
@@ -785,7 +1316,7 @@ app.post('/api/polls/vote', async (req, res) => {
 
       // Register vote
       poll.votes[optionIndex] += 1;
-      poll.voters.push({ name, email: email.toLowerCase() });
+      poll.voters.push({ name, email: email.toLowerCase(), choice: poll.options[optionIndex] });
       
       // Explicitly mark arrays as modified so mongoose saves updates correctly
       poll.markModified('votes');
@@ -814,7 +1345,7 @@ app.post('/api/polls/vote', async (req, res) => {
     }
 
     poll.votes[optionIndex] += 1;
-    poll.voters.push({ name, email: email.toLowerCase() });
+    poll.voters.push({ name, email: email.toLowerCase(), choice: poll.options[optionIndex] });
     
     writePolls(polls);
     broadcast('POLL_UPDATE', poll);

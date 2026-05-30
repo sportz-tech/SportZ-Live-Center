@@ -303,7 +303,58 @@ const mockCricketMatches = [
   }
 ];
 
+const mockWorldCupStandings = [
+  {
+    group: "Group A",
+    teams: [
+      { rank: 1, name: "Argentina", logo: "🇦🇷", played: 3, won: 2, drawn: 1, lost: 0, gd: 4, points: 7 },
+      { rank: 2, name: "Canada", logo: "🇨🇦", played: 3, won: 1, drawn: 1, lost: 1, gd: -1, points: 4 },
+      { rank: 3, name: "Chile", logo: "🇨🇱", played: 3, won: 0, drawn: 2, lost: 1, gd: -1, points: 2 },
+      { rank: 4, name: "Peru", logo: "🇵🇪", played: 3, won: 0, drawn: 2, lost: 1, gd: -2, points: 2 }
+    ]
+  },
+  {
+    group: "Group B",
+    teams: [
+      { rank: 1, name: "Venezuela", logo: "🇻🇪", played: 3, won: 3, drawn: 0, lost: 0, gd: 5, points: 9 },
+      { rank: 2, name: "Ecuador", logo: "🇪🇨", played: 3, won: 1, drawn: 1, lost: 1, gd: 1, points: 4 },
+      { rank: 3, name: "Mexico", logo: "🇲🇽", played: 3, won: 1, drawn: 1, lost: 1, gd: 0, points: 4 },
+      { rank: 4, name: "Jamaica", logo: "🇯🇲", played: 3, won: 0, drawn: 0, lost: 3, gd: -6, points: 0 }
+    ]
+  },
+  {
+    group: "Group C",
+    teams: [
+      { rank: 1, name: "Uruguay", logo: "🇺🇾", played: 3, won: 3, drawn: 0, lost: 0, gd: 8, points: 9 },
+      { rank: 2, name: "United States", logo: "🇺🇸", played: 3, won: 2, drawn: 0, lost: 1, gd: 2, points: 6 },
+      { rank: 3, name: "Panama", logo: "🇵🇦", played: 3, won: 1, drawn: 0, lost: 2, gd: -3, points: 3 },
+      { rank: 4, name: "Bolivia", logo: "🇧🇴", played: 3, won: 0, drawn: 0, lost: 3, gd: -7, points: 0 }
+    ]
+  },
+  {
+    group: "Group D",
+    teams: [
+      { rank: 1, name: "Colombia", logo: "🇨🇴", played: 3, won: 2, drawn: 1, lost: 0, gd: 4, points: 7 },
+      { rank: 2, name: "Brazil", logo: "🇧🇷", played: 3, won: 1, drawn: 2, lost: 0, gd: 4, points: 5 },
+      { rank: 3, name: "Costa Rica", logo: "🇨🇷", played: 3, won: 1, drawn: 1, lost: 1, gd: -2, points: 4 },
+      { rank: 4, name: "Paraguay", logo: "🇵🇾", played: 3, won: 0, drawn: 0, lost: 3, gd: -6, points: 0 }
+    ]
+  }
+];
+
+const mockWorldCupTopscorers = [
+  { rank: 1, name: "Kylian Mbappé", logo: "🇫🇷", team: "France", goals: 6, assists: 2, played: 5 },
+  { rank: 2, name: "Lautaro Martínez", logo: "🇦🇷", team: "Argentina", goals: 5, assists: 0, played: 6 },
+  { rank: 3, name: "Bukayo Saka", logo: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", team: "England", goals: 4, assists: 3, played: 5 },
+  { rank: 4, name: "Jude Bellingham", logo: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", team: "England", goals: 3, assists: 2, played: 5 },
+  { rank: 5, name: "Vinícius Júnior", logo: "🇧🇷", team: "Brazil", goals: 3, assists: 1, played: 4 },
+  { rank: 6, name: "Luis Díaz", logo: "🇨🇴", team: "Colombia", goals: 3, assists: 0, played: 6 },
+  { rank: 7, name: "Lionel Messi", logo: "🇦🇷", team: "Argentina", goals: 2, assists: 4, played: 6 }
+];
+
 module.exports = {
   mockFootballMatches,
-  mockCricketMatches
+  mockCricketMatches,
+  mockWorldCupStandings,
+  mockWorldCupTopscorers
 };

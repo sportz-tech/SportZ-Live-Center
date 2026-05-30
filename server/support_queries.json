@@ -1,0 +1,24 @@
+[
+  {
+    "id": "TKT-1780119137611",
+    "userId": "u-default",
+    "name": "Jane Developer",
+    "email": "developer@sportz.com",
+    "subject": "Test Ticket 1",
+    "message": "Need help with Widget installation",
+    "status": "resolved",
+    "forwardedTo": "reassigned-specialist@sportz.com",
+    "timestamp": "2026-05-30T05:32:17.611Z"
+  },
+  {
+    "id": "TKT-1780119137627",
+    "userId": "u-default",
+    "name": "Jane Developer",
+    "email": "developer@sportz.com",
+    "subject": "Test Ticket 2",
+    "message": "Different query for the new assistant",
+    "status": "resolved",
+    "forwardedTo": "new-assistant@sportz.com",
+    "timestamp": "2026-05-30T05:32:17.627Z"
+  }
+]

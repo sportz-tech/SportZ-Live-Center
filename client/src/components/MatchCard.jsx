@@ -1,5 +1,30 @@
 import React from 'react';
 
+const renderLogo = (logo, fallback = "⚽", style = {}) => {
+  if (!logo) return fallback;
+  if (typeof logo === 'string' && (logo.startsWith('http') || logo.startsWith('/') || logo.startsWith('.'))) {
+    return (
+      <img 
+        src={logo} 
+        alt="logo" 
+        style={{ 
+          width: '1.2em', 
+          height: '1.2em', 
+          objectFit: 'contain', 
+          borderRadius: '4px',
+          display: 'inline-block',
+          verticalAlign: 'middle',
+          ...style 
+        }} 
+        onError={(e) => {
+          e.target.style.display = 'none';
+        }}
+      />
+    );
+  }
+  return logo;
+};
+
 export default function MatchCard({ match, isSelected, onClick }) {
   const isLive = match.status === 'live';
   const isCricket = match.sport === 'cricket';
@@ -51,7 +76,7 @@ export default function MatchCard({ match, isSelected, onClick }) {
         {/* Home Team */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontSize: '1.4rem' }}>{match.homeTeam.logo}</span>
+            <span style={{ fontSize: '1.4rem', display: 'inline-flex', alignItems: 'center' }}>{renderLogo(match.homeTeam.logo, "⚽")}</span>
             <span style={{ fontWeight: 600, fontSize: '1.05rem', color: 'var(--text-primary)' }}>
               {match.homeTeam.name}
             </span>
@@ -66,7 +91,7 @@ export default function MatchCard({ match, isSelected, onClick }) {
         {/* Away Team */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontSize: '1.4rem' }}>{match.awayTeam.logo}</span>
+            <span style={{ fontSize: '1.4rem', display: 'inline-flex', alignItems: 'center' }}>{renderLogo(match.awayTeam.logo, "⚽")}</span>
             <span style={{ fontWeight: 600, fontSize: '1.05rem', color: 'var(--text-primary)' }}>
               {match.awayTeam.name}
             </span>

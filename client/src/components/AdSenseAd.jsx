@@ -14,17 +14,42 @@ import React, { useEffect, useState } from 'react';
  */
 export default function AdSenseAd({
   slot = "1234567890", // Example slot ID (replace with your Google AdSense ad unit slot ID)
+  client = null,       // Configurable dynamic client ID
   format = "auto",
   responsive = "true",
   style = { display: 'block' },
   className = "",
-  height = "120px"
+  height = "120px",
+  licenseKey = null
 }) {
   const [adBlocked, setAdBlocked] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [adsEnabled, setAdsEnabled] = useState(true);
+  const [dynamicClient, setDynamicClient] = useState(null);
 
-  // Retrieve Publisher ID from environment variable or use a fallback placeholder
-  const publisherId = import.meta.env.VITE_ADSENSE_PUB_ID || "";
+  // Fetch settings from server on mount
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const apiHost = import.meta.env.VITE_API_HOST || (window.location.hostname === 'localhost' ? 'http://localhost:5000' : window.location.origin);
+        const url = `${apiHost}/api/settings${licenseKey ? `?licenseKey=${encodeURIComponent(licenseKey)}` : ''}`;
+        const res = await fetch(url);
+        if (res.ok) {
+          const data = await res.json();
+          setAdsEnabled(data.adsEnabled);
+          if (data.adClient) {
+            setDynamicClient(data.adClient);
+          }
+        }
+      } catch (err) {
+        console.warn("Dynamic settings fetch failed:", err);
+      }
+    };
+    loadSettings();
+  }, [licenseKey]);
+
+  // Retrieve Publisher ID from passed prop, dynamic admin settings, environment variable or use a fallback placeholder
+  const publisherId = client || dynamicClient || import.meta.env.VITE_ADSENSE_PUB_ID || "";
   const isDev = import.meta.env.DEV || !publisherId;
 
   useEffect(() => {
@@ -78,6 +103,8 @@ export default function AdSenseAd({
       setAdBlocked(true);
     }
   };
+
+  if (!adsEnabled) return null;
 
   // Render Premium Ad Preview / Mock when no Publisher ID is provided, in dev mode, or if blocked
   if (isDev || adBlocked) {

@@ -9,6 +9,8 @@
     "install-all": "npm run install:server && npm run install:client",
     "prebuild": "npm run install-all",
     "build:client": "npm run build --prefix client",
+    "build:lib": "npm run build:lib --prefix client",
+    "publish:lib": "cd client && npm publish --access public",
     "build": "npm run install-all && npm run build:client",
     "start": "node server/server.js"
   },

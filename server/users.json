@@ -1,0 +1,24 @@
+[
+  {
+    "id": "u-default",
+    "name": "Jane Developer",
+    "email": "developer@sportz.com",
+    "password": "password123",
+    "country": "Germany",
+    "phone": "+49 170 1234567",
+    "address": "Hauptstr. 12, Berlin",
+    "status": "pro",
+    "licenseKey": "SZ-PRO-FZ4Z-3CX0"
+  },
+  {
+    "id": "u-1780117620440",
+    "name": "ranjeet",
+    "email": "riki2181@gmail.com",
+    "password": "123456",
+    "country": "india",
+    "phone": "9907886592",
+    "address": "bihar",
+    "status": "normal",
+    "licenseKey": null
+  }
+]

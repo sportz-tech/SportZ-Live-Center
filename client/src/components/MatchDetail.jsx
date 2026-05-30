@@ -4,6 +4,31 @@ import MatchCharts from './MatchCharts';
 import Polls from './Polls';
 import CommentaryVoice from './CommentaryVoice';
 
+const renderLogo = (logo, fallback = "⚽", style = {}) => {
+  if (!logo) return fallback;
+  if (typeof logo === 'string' && (logo.startsWith('http') || logo.startsWith('/') || logo.startsWith('.'))) {
+    return (
+      <img 
+        src={logo} 
+        alt="logo" 
+        style={{ 
+          width: '1.5em', 
+          height: '1.5em', 
+          objectFit: 'contain', 
+          borderRadius: '4px',
+          display: 'inline-block',
+          verticalAlign: 'middle',
+          ...style 
+        }} 
+        onError={(e) => {
+          e.target.style.display = 'none';
+        }}
+      />
+    );
+  }
+  return logo;
+};
+
 export default function MatchDetail({ match, apiHost }) {
   const [activeTab, setActiveTab] = useState('commentary');
 
@@ -65,7 +90,7 @@ export default function MatchDetail({ match, apiHost }) {
           {isLive && <div className="live-pulse" />}
           <span className={`badge badge-${match.status}`}>{match.status}</span>
         </div>
-
+ 
         <div 
           style={{ 
             display: 'flex', 
@@ -77,7 +102,7 @@ export default function MatchDetail({ match, apiHost }) {
         >
           {/* Home team */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, textAlign: 'center' }}>
-            <span style={{ fontSize: '2.5rem', marginBottom: '4px' }}>{match.homeTeam.logo}</span>
+            <span style={{ fontSize: '2.5rem', marginBottom: '4px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{renderLogo(match.homeTeam.logo, "⚽")}</span>
             <span style={{ fontWeight: 800, fontSize: '1.2rem', fontFamily: 'var(--font-display)' }}>
               {match.homeTeam.name}
             </span>
@@ -123,7 +148,7 @@ export default function MatchDetail({ match, apiHost }) {
 
           {/* Away team */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, textAlign: 'center' }}>
-            <span style={{ fontSize: '2.5rem', marginBottom: '4px' }}>{match.awayTeam.logo}</span>
+            <span style={{ fontSize: '2.5rem', marginBottom: '4px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{renderLogo(match.awayTeam.logo, "⚽")}</span>
             <span style={{ fontWeight: 800, fontSize: '1.2rem', fontFamily: 'var(--font-display)' }}>
               {match.awayTeam.name}
             </span>
