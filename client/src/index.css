@@ -365,3 +365,91 @@ h1, h2, h3, h4, h5, h6 {
 .simulator-panel.open {
   right: 0;
 }
+
+/* --- MOBILE & TABLET RESPONSIVENESS PATCHES --- */
+@media (max-width: 1024px) {
+  /* Center and stack header items on mobile */
+  header.glass-panel {
+    flex-direction: column !important;
+    justify-content: center !important;
+    align-items: center !important;
+    text-align: center;
+    gap: 16px !important;
+    padding: 16px !important;
+  }
+
+  /* Main app sidebar + content layout */
+  .main-layout {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+
+  /* Developer Portal grid layouts */
+  .portal-split {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+
+  /* Widget Wizard layout */
+  .wizard-split {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+
+  /* Admin Dashboard grid layouts */
+  .admin-polls-grid,
+  .admin-ads-grid,
+  .admin-sim-grid,
+  .admin-licenses-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+
+  /* Horizontally scrollable menus instead of ugly wrapping */
+  .header-nav-menu,
+  .dashboard-nav-menu {
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    width: 100% !important;
+    justify-content: flex-start !important;
+    padding: 6px !important;
+    scrollbar-width: none; /* Hide scrollbar for clean look */
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .header-nav-menu::-webkit-scrollbar,
+  .dashboard-nav-menu::-webkit-scrollbar {
+    display: none; /* Hide scrollbar in Safari/Chrome */
+  }
+
+  .header-nav-menu button,
+  .dashboard-nav-menu button {
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Vertically stack scoreboard header content */
+  .scoreboard-header {
+    flex-direction: column !important;
+    align-items: center !important;
+    text-align: center;
+    gap: 20px !important;
+  }
+
+  /* Adjust panel padding for tight screens */
+  .glass-panel {
+    padding: 12px !important;
+  }
+  
+  /* Prevent simulator panel from overflowing too far on narrow viewports */
+  .simulator-panel {
+    width: 100% !important;
+    right: -100% !important;
+  }
+  .simulator-panel.open {
+    right: 0 !important;
+  }
+}
+

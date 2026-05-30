@@ -191,7 +191,10 @@ export default function App() {
         </div>
 
         {/* Center navigation menu pills */}
-        <div style={{ display: 'flex', gap: '6px', background: 'rgba(0,0,0,0.04)', padding: '4px', borderRadius: '12px', flexWrap: 'wrap' }}>
+        <div 
+          className="header-nav-menu"
+          style={{ display: 'flex', gap: '6px', background: 'rgba(0,0,0,0.04)', padding: '4px', borderRadius: '12px', flexWrap: 'wrap' }}
+        >
           <button
             onClick={() => {
               setSport('football');

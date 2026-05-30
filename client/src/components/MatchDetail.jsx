@@ -92,6 +92,7 @@ export default function MatchDetail({ match, apiHost }) {
         </div>
  
         <div 
+          className="scoreboard-header"
           style={{ 
             display: 'flex', 
             justifyContent: 'space-between', 

@@ -186,7 +186,10 @@ export default function WorldCupDashboard({ apiHost = 'http://localhost:5000' })
         </div>
 
         {/* Secondary Pill Toggles */}
-        <div style={{ display: 'flex', gap: '6px', background: 'rgba(0,0,0,0.04)', padding: '4px', borderRadius: '10px', flexWrap: 'wrap' }}>
+        <div 
+          className="dashboard-nav-menu"
+          style={{ display: 'flex', gap: '6px', background: 'rgba(0,0,0,0.04)', padding: '4px', borderRadius: '10px', flexWrap: 'wrap' }}
+        >
           <button
             onClick={() => setActiveSubTab('standings')}
             style={{
