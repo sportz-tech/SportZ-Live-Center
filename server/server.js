@@ -5,7 +5,7 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
-require('dotenv').config();
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const { mockFootballMatches, mockCricketMatches, mockWorldCupStandings, mockWorldCupTopscorers } = require('./mockData');
 
@@ -93,6 +93,56 @@ let matchesCache = {
   football: JSON.parse(JSON.stringify(mockFootballMatches)),
   cricket: JSON.parse(JSON.stringify(mockCricketMatches))
 };
+
+// Caching layer for Sportmonks proxy REST endpoints
+const proxyCache = new Map();
+const CACHE_TTL = 60000; // 60 seconds
+
+// Custom HTTP Error to carry status code
+class HttpError extends Error {
+  constructor(status, message) {
+    super(message);
+    this.status = status;
+  }
+}
+
+// Track active, in-flight promises to coalesce duplicate concurrent requests
+const activeRequests = new Map();
+
+async function getCachedOrFetch(cacheKey, fetchFn) {
+  // 1. Check cache first
+  if (proxyCache.has(cacheKey)) {
+    const cachedData = proxyCache.get(cacheKey);
+    if (Date.now() - cachedData.timestamp < CACHE_TTL) {
+      console.log(`[PROXY CACHE HIT] ${cacheKey}`);
+      return cachedData.data;
+    }
+  }
+
+  // 2. Check if there is an active request in progress
+  if (activeRequests.has(cacheKey)) {
+    console.log(`[PROXY COALESCE] Joining existing in-flight request for: ${cacheKey}`);
+    return activeRequests.get(cacheKey);
+  }
+
+  console.log(`[PROXY CACHE MISS] Initiating fresh fetch for: ${cacheKey}`);
+
+  // 3. Create the fetch promise
+  const fetchPromise = (async () => {
+    try {
+      const data = await fetchFn();
+      proxyCache.set(cacheKey, { timestamp: Date.now(), data });
+      return data;
+    } finally {
+      activeRequests.delete(cacheKey);
+    }
+  })();
+
+  activeRequests.set(cacheKey, fetchPromise);
+  return fetchPromise;
+}
+
+
 
 // Initialize polls if not exist
 function initPolls() {
@@ -533,24 +583,29 @@ app.get('/api/:sport/teams/:id', async (req, res) => {
     return res.status(400).json({ error: "Sportmonks API Token not configured on the server" });
   }
 
-  try {
-    let includeParam = '';
-    if (sport === 'football') {
-      includeParam = 'upcoming.participants;upcoming.league';
-    } else if (sport === 'cricket') {
-      includeParam = req.query.include || 'players';
-    }
+  const cacheKey = req.originalUrl;
 
-    const url = `https://api.sportmonks.com/v3/${sport}/teams/${id}?api_token=${API_TOKEN}${includeParam ? `&include=${includeParam}` : ''}`;
-    const response = await fetch(url);
-    if (!response.ok) {
-      return res.status(response.status).json({ error: `Sportmonks API error: ${response.statusText}` });
-    }
-    const json = await response.json();
-    res.json(json);
+  try {
+    const data = await getCachedOrFetch(cacheKey, async () => {
+      let includeParam = '';
+      if (sport === 'football') {
+        includeParam = 'upcoming.participants;upcoming.league';
+      } else if (sport === 'cricket') {
+        includeParam = req.query.include || 'players';
+      }
+
+      const url = `https://api.sportmonks.com/v3/${sport}/teams/${id}?api_token=${API_TOKEN}${includeParam ? `&include=${includeParam}` : ''}`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new HttpError(response.status, `Sportmonks API error: ${response.statusText}`);
+      }
+      return await response.json();
+    });
+
+    res.json(data);
   } catch (err) {
-    console.error(`Error fetching team details from Sportmonks for ${sport}:`, err);
-    res.status(500).json({ error: err.message });
+    const status = err.status || 500;
+    res.status(status).json({ error: err.message });
   }
 });
 
@@ -558,14 +613,23 @@ app.get('/api/:sport/teams/:id', async (req, res) => {
 app.get('/api/football/livescores/inplay', async (req, res) => {
   const API_TOKEN = process.env.SPORTMONKS_API_TOKEN;
   if (!API_TOKEN) return res.status(400).json({ error: "Sportmonks API Token not configured on the server" });
+
+  const cacheKey = req.originalUrl;
+
   try {
-    const url = `https://api.sportmonks.com/v3/football/livescores/inplay?api_token=${API_TOKEN}&include=participants;scores;periods;events;league.country;round`;
-    const response = await fetch(url);
-    if (!response.ok) return res.status(response.status).json({ error: `Sportmonks API error: ${response.statusText}` });
-    const json = await response.json();
-    res.json(json);
+    const data = await getCachedOrFetch(cacheKey, async () => {
+      const url = `https://api.sportmonks.com/v3/football/livescores/inplay?api_token=${API_TOKEN}&include=participants;scores;periods;events;league.country;round`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new HttpError(response.status, `Sportmonks API error: ${response.statusText}`);
+      }
+      return await response.json();
+    });
+
+    res.json(data);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    const status = err.status || 500;
+    res.status(status).json({ error: err.message });
   }
 });
 
@@ -574,14 +638,23 @@ app.get('/api/football/schedules/teams/:id', async (req, res) => {
   const teamId = req.params.id;
   const API_TOKEN = process.env.SPORTMONKS_API_TOKEN;
   if (!API_TOKEN) return res.status(400).json({ error: "Sportmonks API Token not configured on the server" });
+
+  const cacheKey = req.originalUrl;
+
   try {
-    const url = `https://api.sportmonks.com/v3/football/schedules/teams/${teamId}?api_token=${API_TOKEN}`;
-    const response = await fetch(url);
-    if (!response.ok) return res.status(response.status).json({ error: `Sportmonks API error: ${response.statusText}` });
-    const json = await response.json();
-    res.json(json);
+    const data = await getCachedOrFetch(cacheKey, async () => {
+      const url = `https://api.sportmonks.com/v3/football/schedules/teams/${teamId}?api_token=${API_TOKEN}`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new HttpError(response.status, `Sportmonks API error: ${response.statusText}`);
+      }
+      return await response.json();
+    });
+
+    res.json(data);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    const status = err.status || 500;
+    res.status(status).json({ error: err.message });
   }
 });
 
@@ -590,14 +663,23 @@ app.get('/api/football/leagues/date/:date', async (req, res) => {
   const date = req.params.date;
   const API_TOKEN = process.env.SPORTMONKS_API_TOKEN;
   if (!API_TOKEN) return res.status(400).json({ error: "Sportmonks API Token not configured on the server" });
+
+  const cacheKey = req.originalUrl;
+
   try {
-    const url = `https://api.sportmonks.com/v3/football/leagues/date/${date}?api_token=${API_TOKEN}&include=today.scores;today.participants;today.stage;today.group;today.round`;
-    const response = await fetch(url);
-    if (!response.ok) return res.status(response.status).json({ error: `Sportmonks API error: ${response.statusText}` });
-    const json = await response.json();
-    res.json(json);
+    const data = await getCachedOrFetch(cacheKey, async () => {
+      const url = `https://api.sportmonks.com/v3/football/leagues/date/${date}?api_token=${API_TOKEN}&include=today.scores;today.participants;today.stage;today.group;today.round`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new HttpError(response.status, `Sportmonks API error: ${response.statusText}`);
+      }
+      return await response.json();
+    });
+
+    res.json(data);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    const status = err.status || 500;
+    res.status(status).json({ error: err.message });
   }
 });
 
@@ -606,14 +688,23 @@ app.get('/api/football/fixtures/:id', async (req, res) => {
   const fixtureId = req.params.id;
   const API_TOKEN = process.env.SPORTMONKS_API_TOKEN;
   if (!API_TOKEN) return res.status(400).json({ error: "Sportmonks API Token not configured on the server" });
+
+  const cacheKey = req.originalUrl;
+
   try {
-    const url = `https://api.sportmonks.com/v3/football/fixtures/${fixtureId}?api_token=${API_TOKEN}&include=participants;league;venue;state;scores;lineups.player;lineups.type;lineups.details.type;metadata.type;coaches`;
-    const response = await fetch(url);
-    if (!response.ok) return res.status(response.status).json({ error: `Sportmonks API error: ${response.statusText}` });
-    const json = await response.json();
-    res.json(json);
+    const data = await getCachedOrFetch(cacheKey, async () => {
+      const url = `https://api.sportmonks.com/v3/football/fixtures/${fixtureId}?api_token=${API_TOKEN}&include=participants;league;venue;state;scores;lineups.player;lineups.type;lineups.details.type;metadata.type;coaches`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new HttpError(response.status, `Sportmonks API error: ${response.statusText}`);
+      }
+      return await response.json();
+    });
+
+    res.json(data);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    const status = err.status || 500;
+    res.status(status).json({ error: err.message });
   }
 });
 
@@ -621,14 +712,23 @@ app.get('/api/football/fixtures/:id', async (req, res) => {
 app.get('/api/cricket/livescores/inplay', async (req, res) => {
   const API_TOKEN = process.env.SPORTMONKS_API_TOKEN;
   if (!API_TOKEN) return res.status(400).json({ error: "Sportmonks API Token not configured on the server" });
+
+  const cacheKey = req.originalUrl;
+
   try {
-    const url = `https://api.sportmonks.com/v3/cricket/livescores/inplay?api_token=${API_TOKEN}&include=runs;livescores;lineups;events;commentaries`;
-    const response = await fetch(url);
-    if (!response.ok) return res.status(response.status).json({ error: `Sportmonks API error: ${response.statusText}` });
-    const json = await response.json();
-    res.json(json);
+    const data = await getCachedOrFetch(cacheKey, async () => {
+      const url = `https://api.sportmonks.com/v3/cricket/livescores/inplay?api_token=${API_TOKEN}&include=runs;livescores;lineups;events;commentaries`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new HttpError(response.status, `Sportmonks API error: ${response.statusText}`);
+      }
+      return await response.json();
+    });
+
+    res.json(data);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    const status = err.status || 500;
+    res.status(status).json({ error: err.message });
   }
 });
 
@@ -637,14 +737,23 @@ app.get('/api/cricket/schedules/teams/:id', async (req, res) => {
   const teamId = req.params.id;
   const API_TOKEN = process.env.SPORTMONKS_API_TOKEN;
   if (!API_TOKEN) return res.status(400).json({ error: "Sportmonks API Token not configured on the server" });
+
+  const cacheKey = req.originalUrl;
+
   try {
-    const url = `https://api.sportmonks.com/v3/cricket/schedules/teams/${teamId}?api_token=${API_TOKEN}`;
-    const response = await fetch(url);
-    if (!response.ok) return res.status(response.status).json({ error: `Sportmonks API error: ${response.statusText}` });
-    const json = await response.json();
-    res.json(json);
+    const data = await getCachedOrFetch(cacheKey, async () => {
+      const url = `https://api.sportmonks.com/v3/cricket/schedules/teams/${teamId}?api_token=${API_TOKEN}`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new HttpError(response.status, `Sportmonks API error: ${response.statusText}`);
+      }
+      return await response.json();
+    });
+
+    res.json(data);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    const status = err.status || 500;
+    res.status(status).json({ error: err.message });
   }
 });
 
@@ -653,14 +762,23 @@ app.get('/api/cricket/fixtures/date/:date', async (req, res) => {
   const date = req.params.date;
   const API_TOKEN = process.env.SPORTMONKS_API_TOKEN;
   if (!API_TOKEN) return res.status(400).json({ error: "Sportmonks API Token not configured on the server" });
+
+  const cacheKey = req.originalUrl;
+
   try {
-    const url = `https://api.sportmonks.com/v3/cricket/fixtures/date/${date}?api_token=${API_TOKEN}&include=runs;livescores;lineups;events;commentaries`;
-    const response = await fetch(url);
-    if (!response.ok) return res.status(response.status).json({ error: `Sportmonks API error: ${response.statusText}` });
-    const json = await response.json();
-    res.json(json);
+    const data = await getCachedOrFetch(cacheKey, async () => {
+      const url = `https://api.sportmonks.com/v3/cricket/fixtures/date/${date}?api_token=${API_TOKEN}&include=runs;livescores;lineups;events;commentaries`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new HttpError(response.status, `Sportmonks API error: ${response.statusText}`);
+      }
+      return await response.json();
+    });
+
+    res.json(data);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    const status = err.status || 500;
+    res.status(status).json({ error: err.message });
   }
 });
 
@@ -669,14 +787,23 @@ app.get('/api/cricket/fixtures/:id', async (req, res) => {
   const fixtureId = req.params.id;
   const API_TOKEN = process.env.SPORTMONKS_API_TOKEN;
   if (!API_TOKEN) return res.status(400).json({ error: "Sportmonks API Token not configured on the server" });
+
+  const cacheKey = req.originalUrl;
+
   try {
-    const url = `https://api.sportmonks.com/v3/cricket/fixtures/${fixtureId}?api_token=${API_TOKEN}&include=runs;livescores;lineups;events;commentaries`;
-    const response = await fetch(url);
-    if (!response.ok) return res.status(response.status).json({ error: `Sportmonks API error: ${response.statusText}` });
-    const json = await response.json();
-    res.json(json);
+    const data = await getCachedOrFetch(cacheKey, async () => {
+      const url = `https://api.sportmonks.com/v3/cricket/fixtures/${fixtureId}?api_token=${API_TOKEN}&include=runs;livescores;lineups;events;commentaries`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new HttpError(response.status, `Sportmonks API error: ${response.statusText}`);
+      }
+      return await response.json();
+    });
+
+    res.json(data);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    const status = err.status || 500;
+    res.status(status).json({ error: err.message });
   }
 });
 
@@ -692,23 +819,33 @@ app.get('/api/football/standings', async (req, res) => {
   const API_TOKEN = process.env.SPORTMONKS_API_TOKEN;
   const seasonId = req.query.seasonId || '24250'; // Default tournament season placeholder
 
-  if (API_TOKEN) {
-    try {
-      const url = `https://api.sportmonks.com/v3/football/standings/seasons/${seasonId}?api_token=${API_TOKEN}&include=standing.team`;
-      const response = await fetch(url);
-      if (response.ok) {
-        const json = await response.ok ? await response.json() : null;
-        if (json && json.data && json.data.length > 0) {
-          return res.json(json.data);
+  const cacheKey = req.originalUrl;
+
+  try {
+    const data = await getCachedOrFetch(cacheKey, async () => {
+      let responseData = mockWorldCupStandings;
+      if (API_TOKEN) {
+        try {
+          const url = `https://api.sportmonks.com/v3/football/standings/seasons/${seasonId}?api_token=${API_TOKEN}&include=standing.team`;
+          const response = await fetch(url);
+          if (response.ok) {
+            const json = await response.json();
+            if (json && json.data && json.data.length > 0) {
+              responseData = json.data;
+            }
+          }
+        } catch (err) {
+          console.warn("Sportmonks Standings fetch failed, falling back to mock:", err.message);
         }
       }
-    } catch (err) {
-      console.warn("Sportmonks Standings fetch failed, falling back to mock:", err.message);
-    }
-  }
+      return responseData;
+    });
 
-  // Fallback to gorgeous local mock World Cup standings
-  res.json(mockWorldCupStandings);
+    res.json(data);
+  } catch (err) {
+    const status = err.status || 500;
+    res.status(status).json({ error: err.message });
+  }
 });
 
 // Get Football Tournament Topscorers (Real-time query with mock fallback)
@@ -716,23 +853,33 @@ app.get('/api/football/topscorers', async (req, res) => {
   const API_TOKEN = process.env.SPORTMONKS_API_TOKEN;
   const seasonId = req.query.seasonId || '24250';
 
-  if (API_TOKEN) {
-    try {
-      const url = `https://api.sportmonks.com/v3/football/topscorers/seasons/${seasonId}?api_token=${API_TOKEN}&include=player;team`;
-      const response = await fetch(url);
-      if (response.ok) {
-        const json = await response.ok ? await response.json() : null;
-        if (json && json.data && json.data.length > 0) {
-          return res.json(json.data);
+  const cacheKey = req.originalUrl;
+
+  try {
+    const data = await getCachedOrFetch(cacheKey, async () => {
+      let responseData = mockWorldCupTopscorers;
+      if (API_TOKEN) {
+        try {
+          const url = `https://api.sportmonks.com/v3/football/topscorers/seasons/${seasonId}?api_token=${API_TOKEN}&include=player;team`;
+          const response = await fetch(url);
+          if (response.ok) {
+            const json = await response.json();
+            if (json && json.data && json.data.length > 0) {
+              responseData = json.data;
+            }
+          }
+        } catch (err) {
+          console.warn("Sportmonks Topscorers fetch failed, falling back to mock:", err.message);
         }
       }
-    } catch (err) {
-      console.warn("Sportmonks Topscorers fetch failed, falling back to mock:", err.message);
-    }
-  }
+      return responseData;
+    });
 
-  // Fallback to local mock World Cup topscorers list
-  res.json(mockWorldCupTopscorers);
+    res.json(data);
+  } catch (err) {
+    const status = err.status || 500;
+    res.status(status).json({ error: err.message });
+  }
 });
 
 
