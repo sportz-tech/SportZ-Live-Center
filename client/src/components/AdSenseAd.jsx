@@ -50,7 +50,7 @@ export default function AdSenseAd({
 
   // Retrieve Publisher ID from passed prop, dynamic admin settings, environment variable or use a fallback placeholder
   const publisherId = client || dynamicClient || import.meta.env.VITE_ADSENSE_PUB_ID || "";
-  const isDev = import.meta.env.DEV || !publisherId;
+  const isDev = import.meta.env.DEV || !publisherId || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
   useEffect(() => {
     if (!publisherId) {

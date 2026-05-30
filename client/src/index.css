@@ -381,18 +381,21 @@ h1, h2, h3, h4, h5, h6 {
   /* Main app sidebar + content layout */
   .main-layout {
     grid-template-columns: 1fr !important;
+    grid-auto-rows: min-content !important;
     gap: 16px !important;
   }
 
   /* Developer Portal grid layouts */
   .portal-split {
     grid-template-columns: 1fr !important;
+    grid-auto-rows: min-content !important;
     gap: 16px !important;
   }
 
   /* Widget Wizard layout */
   .wizard-split {
     grid-template-columns: 1fr !important;
+    grid-auto-rows: min-content !important;
     gap: 16px !important;
   }
 
@@ -402,6 +405,7 @@ h1, h2, h3, h4, h5, h6 {
   .admin-sim-grid,
   .admin-licenses-grid {
     grid-template-columns: 1fr !important;
+    grid-auto-rows: min-content !important;
     gap: 16px !important;
   }
 
