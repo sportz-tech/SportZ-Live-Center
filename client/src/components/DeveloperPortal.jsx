@@ -107,13 +107,13 @@ export default function DeveloperPortal({ apiHost = 'http://localhost:5000' }) {
       return;
     }
 
-    const scriptId = 'paypal-portal-sdk';
+        const scriptId = 'paypal-portal-sdk';
     let script = document.getElementById(scriptId);
 
     if (!script) {
       script = document.createElement('script');
       script.id = scriptId;
-      script.src = `https://www.paypal.com/sdk/js?client-id=sb&currency=EUR`;
+      script.src = `https://www.paypal.com/sdk/js?client-id=ASZXsWSVNGX21n9i2C9NNinN2dYtXQX3dIjD-sImcEO0bEgf4UiMLAs-V3iWrlX-wS7N-7F8OrY7l0MQ&currency=EUR`;
       script.async = true;
       script.onload = () => {
         console.log("PayPal SDK loaded inside Developer Portal.");
