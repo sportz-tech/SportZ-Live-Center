@@ -344,7 +344,7 @@ async function syncSportmonksData() {
     }
 
     // 2. Fetch Cricket Live Fixtures
-    const crUrl = `https://api.sportmonks.com/v3/cricket/fixtures?api_token=${API_TOKEN}&include=runs;livescores;lineups;events;commentaries`;
+    const crUrl = `https://api.sportmonks.com/v3/cricket/livescores/inplay?api_token=${API_TOKEN}&include=runs;livescores;lineups;events;commentaries`;
     const crRes = await fetch(crUrl);
     if (crRes.ok) {
       const crJson = await crRes.json();
