@@ -36,19 +36,73 @@ const PollSchema = new mongoose.Schema({
 
 const PollModel = mongoose.model('Poll', PollSchema);
 
+// User Mongoose Schema
+const UserSchema = new mongoose.Schema({
+  id: { type: String, required: true, unique: true },
+  name: { type: String, required: true },
+  email: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
+  country: { type: String, default: '' },
+  phone: { type: String, default: '' },
+  address: { type: String, default: '' },
+  status: { type: String, default: 'normal' },
+  licenseKey: { type: String, default: null }
+});
+
+const UserModel = mongoose.model('User', UserSchema);
+
+// License Mongoose Schema
+const LicenseSchema = new mongoose.Schema({
+  key: { type: String, required: true, unique: true }
+});
+
+const LicenseModel = mongoose.model('License', LicenseSchema);
+
+// Settings Mongoose Schema
+const SettingsSchema = new mongoose.Schema({
+  adsEnabled: { type: Boolean, default: true },
+  adClient: { type: String, default: 'ca-pub-5739201948' },
+  adSlots: {
+    sidebar: { type: String, default: '5739201948' },
+    header: { type: String, default: '9283748291' }
+  },
+  supportEmail: { type: String, default: 'cricbuzz756@gmail.com' }
+});
+
+const SettingsModel = mongoose.model('Settings', SettingsSchema);
+
+// SupportQuery Mongoose Schema
+const SupportQuerySchema = new mongoose.Schema({
+  id: { type: String, required: true, unique: true },
+  userId: { type: String, required: true },
+  name: { type: String, default: 'Developer' },
+  email: { type: String, default: 'N/A' },
+  subject: { type: String, required: true },
+  message: { type: String, required: true },
+  status: { type: String, default: 'pending' },
+  forwardedTo: { type: String, default: 'cricbuzz756@gmail.com' },
+  timestamp: { type: String, default: () => new Date().toISOString() }
+});
+
+const SupportQueryModel = mongoose.model('SupportQuery', SupportQuerySchema);
+
 // Connection establishment
 if (MONGODB_URI && MONGODB_URI !== 'your_mongodb_atlas_connection_string_here') {
   mongoose.connect(MONGODB_URI)
-    .then(() => {
+    .then(async () => {
       console.log("Connected successfully to MongoDB Atlas.");
       useMongoDB = true;
-      initMongoPolls();
+      await initMongoPolls();
+      await initMongoUsers();
+      await initMongoLicenses();
+      await initMongoSettings();
+      await initMongoSupportQueries();
     })
     .catch(err => {
-      console.error("MongoDB Atlas connection failed. Falling back to local polls.json file. Error:", err.message);
+      console.error("MongoDB Atlas connection failed. Falling back to local data files. Error:", err.message);
     });
 } else {
-  console.log("No valid MONGODB_URI found in env. Falling back to local polls.json file storage.");
+  console.log("No valid MONGODB_URI found in env. Falling back to local data files storage.");
 }
 
 // Seed default polls to MongoDB if collection is empty
@@ -82,6 +136,69 @@ async function initMongoPolls() {
     }
   } catch (err) {
     console.error("Error seeding default polls to MongoDB:", err.message);
+  }
+}
+
+// Seed/Migrate users from users.json to MongoDB if empty
+async function initMongoUsers() {
+  try {
+    const count = await UserModel.countDocuments();
+    if (count === 0) {
+      const localUsers = readUsers();
+      if (localUsers && localUsers.length > 0) {
+        await UserModel.insertMany(localUsers);
+        console.log(`Migrated ${localUsers.length} users from users.json to MongoDB.`);
+      }
+    }
+  } catch (err) {
+    console.error("Error migrating users to MongoDB:", err.message);
+  }
+}
+
+// Seed/Migrate licenses from licenses.json to MongoDB if empty
+async function initMongoLicenses() {
+  try {
+    const count = await LicenseModel.countDocuments();
+    if (count === 0) {
+      const localLicenses = readLicenses();
+      if (localLicenses && localLicenses.length > 0) {
+        const licenseDocs = localLicenses.map(key => ({ key }));
+        await LicenseModel.insertMany(licenseDocs);
+        console.log(`Migrated ${localLicenses.length} licenses from licenses.json to MongoDB.`);
+      }
+    }
+  } catch (err) {
+    console.error("Error migrating licenses to MongoDB:", err.message);
+  }
+}
+
+// Seed/Migrate settings from settings.json to MongoDB if empty
+async function initMongoSettings() {
+  try {
+    const count = await SettingsModel.countDocuments();
+    if (count === 0) {
+      const localSettings = readSettings();
+      await SettingsModel.create(localSettings);
+      console.log("Migrated settings from settings.json to MongoDB.");
+    }
+  } catch (err) {
+    console.error("Error migrating settings to MongoDB:", err.message);
+  }
+}
+
+// Seed/Migrate support queries from support_queries.json to MongoDB if empty
+async function initMongoSupportQueries() {
+  try {
+    const count = await SupportQueryModel.countDocuments();
+    if (count === 0) {
+      const localQueries = readSupportQueries();
+      if (localQueries && localQueries.length > 0) {
+        await SupportQueryModel.insertMany(localQueries);
+        console.log(`Migrated ${localQueries.length} support queries from support_queries.json to MongoDB.`);
+      }
+    }
+  } catch (err) {
+    console.error("Error migrating support queries to MongoDB:", err.message);
   }
 }
 
@@ -962,24 +1079,44 @@ function writeLicenses(licenses) {
   }
 }
 
-app.get('/api/settings', (req, res) => {
+app.get('/api/settings', async (req, res) => {
   const licenseKey = req.query.licenseKey;
-  const currentSettings = readSettings();
-  const activeLicenses = readLicenses();
 
-  if (licenseKey && activeLicenses.includes(licenseKey)) {
-    res.json({
-      ...currentSettings,
-      adsEnabled: false,
-      status: 'premium',
-      licenseValid: true
-    });
-  } else {
-    res.json({
-      ...currentSettings,
-      status: licenseKey ? 'invalid' : 'free',
-      licenseValid: false
-    });
+  try {
+    let currentSettings;
+    let activeLicenses;
+
+    if (useMongoDB) {
+      const settingsDoc = await SettingsModel.findOne();
+      currentSettings = settingsDoc ? settingsDoc.toObject() : {
+        adsEnabled: true,
+        adClient: 'ca-pub-5739201948',
+        adSlots: { sidebar: '5739201948', header: '9283748291' },
+        supportEmail: 'cricbuzz756@gmail.com'
+      };
+      const licenseDocs = await LicenseModel.find();
+      activeLicenses = licenseDocs.map(l => l.key);
+    } else {
+      currentSettings = readSettings();
+      activeLicenses = readLicenses();
+    }
+
+    if (licenseKey && activeLicenses.includes(licenseKey)) {
+      res.json({
+        ...currentSettings,
+        adsEnabled: false,
+        status: 'premium',
+        licenseValid: true
+      });
+    } else {
+      res.json({
+        ...currentSettings,
+        status: licenseKey ? 'invalid' : 'free',
+        licenseValid: false
+      });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -1024,112 +1161,179 @@ function writeUsers(users) {
 // --- USER AUTHENTICATION ENDPOINTS ---
 
 // Register a new developer account
-app.post('/api/auth/register', (req, res) => {
+app.post('/api/auth/register', async (req, res) => {
   const { name, email, password, country, phone, address } = req.body;
 
   if (!name || !email || !password) {
     return res.status(400).json({ error: "Missing required fields (Name, Email, Password)." });
   }
 
-  const users = readUsers();
-  const exists = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-  if (exists) {
-    return res.status(400).json({ error: "An account with this email already exists." });
-  }
+  try {
+    if (useMongoDB) {
+      const exists = await UserModel.findOne({ email: email.toLowerCase() });
+      if (exists) {
+        return res.status(400).json({ error: "An account with this email already exists." });
+      }
 
-  const newUser = {
-    id: `u-${Date.now()}`,
-    name,
-    email: email.toLowerCase(),
-    password,
-    country: country || '',
-    phone: phone || '',
-    address: address || '',
-    status: 'normal',
-    licenseKey: null
-  };
+      const newUser = new UserModel({
+        id: `u-${Date.now()}`,
+        name,
+        email: email.toLowerCase(),
+        password,
+        country: country || '',
+        phone: phone || '',
+        address: address || '',
+        status: 'normal',
+        licenseKey: null
+      });
 
-  users.push(newUser);
-  if (writeUsers(users)) {
-    res.json({ success: true, user: { id: newUser.id, name: newUser.name, email: newUser.email, status: newUser.status } });
-  } else {
-    res.status(500).json({ error: "Failed to write user account to database." });
+      await newUser.save();
+      return res.json({ success: true, user: { id: newUser.id, name: newUser.name, email: newUser.email, status: newUser.status } });
+    }
+
+    // Fallback file-based storage
+    const users = readUsers();
+    const exists = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+    if (exists) {
+      return res.status(400).json({ error: "An account with this email already exists." });
+    }
+
+    const newUser = {
+      id: `u-${Date.now()}`,
+      name,
+      email: email.toLowerCase(),
+      password,
+      country: country || '',
+      phone: phone || '',
+      address: address || '',
+      status: 'normal',
+      licenseKey: null
+    };
+
+    users.push(newUser);
+    if (writeUsers(users)) {
+      res.json({ success: true, user: { id: newUser.id, name: newUser.name, email: newUser.email, status: newUser.status } });
+    } else {
+      res.status(500).json({ error: "Failed to write user account to database." });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
 // Login developer account
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
     return res.status(400).json({ error: "Missing credentials." });
   }
 
-  const users = readUsers();
-  const user = users.find(u => u.email.toLowerCase() === email.toLowerCase() && u.password === password);
+  try {
+    let user;
+    if (useMongoDB) {
+      user = await UserModel.findOne({ email: email.toLowerCase(), password });
+    } else {
+      const users = readUsers();
+      user = users.find(u => u.email.toLowerCase() === email.toLowerCase() && u.password === password);
+    }
 
-  if (user) {
-    res.json({
-      success: true,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        country: user.country,
-        phone: user.phone,
-        address: user.address,
-        status: user.status,
-        licenseKey: user.licenseKey
-      }
-    });
-  } else {
-    res.status(401).json({ error: "Invalid email or password." });
+    if (user) {
+      res.json({
+        success: true,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          country: user.country,
+          phone: user.phone,
+          address: user.address,
+          status: user.status,
+          licenseKey: user.licenseKey
+        }
+      });
+    } else {
+      res.status(401).json({ error: "Invalid email or password." });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
 // PayPal upgrade developer account to Premium Pro
-app.post('/api/auth/upgrade', (req, res) => {
+app.post('/api/auth/upgrade', async (req, res) => {
   const { userId } = req.body;
 
   if (!userId) {
     return res.status(400).json({ error: "Missing User ID for upgrade." });
   }
 
-  const users = readUsers();
-  const userIdx = users.findIndex(u => u.id === userId);
-  if (userIdx === -1) {
-    return res.status(404).json({ error: "User not found." });
-  }
+  try {
+    // Generate unique premium license key
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    const genChunk = (len) => Array.from({ length: len }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+    const newKey = `SZ-PRO-${genChunk(4)}-${genChunk(4)}`;
 
-  // Generate unique premium license key
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  const genChunk = (len) => Array.from({ length: len }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-  const newKey = `SZ-PRO-${genChunk(4)}-${genChunk(4)}`;
-
-  // Update user in users.json
-  users[userIdx].status = 'pro';
-  users[userIdx].licenseKey = newKey;
-
-  // Add to active licenses globally in licenses.json
-  const activeLicenses = readLicenses();
-  activeLicenses.push(newKey);
-
-  if (writeUsers(users) && writeLicenses(activeLicenses)) {
-    res.json({
-      success: true,
-      user: {
-        id: users[userIdx].id,
-        name: users[userIdx].name,
-        email: users[userIdx].email,
-        country: users[userIdx].country,
-        phone: users[userIdx].phone,
-        address: users[userIdx].address,
-        status: users[userIdx].status,
-        licenseKey: users[userIdx].licenseKey
+    if (useMongoDB) {
+      const user = await UserModel.findOne({ id: userId });
+      if (!user) {
+        return res.status(404).json({ error: "User not found." });
       }
-    });
-  } else {
-    res.status(500).json({ error: "Failed to persist upgrade changes." });
+
+      user.status = 'pro';
+      user.licenseKey = newKey;
+      await user.save();
+
+      const newLicense = new LicenseModel({ key: newKey });
+      await newLicense.save();
+
+      return res.json({
+        success: true,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          country: user.country,
+          phone: user.phone,
+          address: user.address,
+          status: user.status,
+          licenseKey: user.licenseKey
+        }
+      });
+    }
+
+    // Fallback file-based storage
+    const users = readUsers();
+    const userIdx = users.findIndex(u => u.id === userId);
+    if (userIdx === -1) {
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    users[userIdx].status = 'pro';
+    users[userIdx].licenseKey = newKey;
+
+    const activeLicenses = readLicenses();
+    activeLicenses.push(newKey);
+
+    if (writeUsers(users) && writeLicenses(activeLicenses)) {
+      res.json({
+        success: true,
+        user: {
+          id: users[userIdx].id,
+          name: users[userIdx].name,
+          email: users[userIdx].email,
+          country: users[userIdx].country,
+          phone: users[userIdx].phone,
+          address: users[userIdx].address,
+          status: users[userIdx].status,
+          licenseKey: users[userIdx].licenseKey
+        }
+      });
+    } else {
+      res.status(500).json({ error: "Failed to persist upgrade changes." });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -1157,111 +1361,192 @@ function writeSupportQueries(data) {
 }
 
 // Register support queries submitted by logged in developers
-app.post('/api/support/query', (req, res) => {
+app.post('/api/support/query', async (req, res) => {
   const { userId, name, email, subject, message } = req.body;
 
   if (!userId || !subject || !message) {
     return res.status(400).json({ error: "Missing required support query parameters." });
   }
 
-  const settings = readSettings();
-  const supportEmail = settings.supportEmail || 'cricbuzz756@gmail.com';
+  try {
+    let supportEmail = 'cricbuzz756@gmail.com';
+    if (useMongoDB) {
+      const settings = await SettingsModel.findOne();
+      if (settings && settings.supportEmail) {
+        supportEmail = settings.supportEmail;
+      }
+    } else {
+      const settings = readSettings();
+      supportEmail = settings.supportEmail || 'cricbuzz756@gmail.com';
+    }
 
-  const queries = readSupportQueries();
-  const newQuery = {
-    id: `TKT-${Date.now()}`,
-    userId,
-    name: name || 'Developer',
-    email: email || 'N/A',
-    subject,
-    message,
-    status: 'pending',
-    forwardedTo: supportEmail,
-    timestamp: new Date().toISOString()
-  };
+    const newQueryId = `TKT-${Date.now()}`;
+    const timestampStr = new Date().toISOString();
 
-  // Simulate SMTP Mail System dispatch to support inbox
-  console.log(`\n======================================================`);
-  console.log(`📬 [SMTP MAIL SYSTEM] FORWARDING SUPPORT QUERY`);
-  console.log(`------------------------------------------------------`);
-  console.log(`From: support@sportz-widgets.com`);
-  console.log(`To: ${supportEmail}`);
-  console.log(`Subject: [Support Ticket ${newQuery.id}] ${newQuery.subject}`);
-  console.log(`Developer Name: ${newQuery.name}`);
-  console.log(`Developer Email: ${newQuery.email}`);
-  console.log(`Message Content:\n"${newQuery.message}"`);
-  console.log(`======================================================\n`);
+    // Simulate SMTP Mail System dispatch to support inbox
+    console.log(`\n======================================================`);
+    console.log(`📬 [SMTP MAIL SYSTEM] FORWARDING SUPPORT QUERY`);
+    console.log(`------------------------------------------------------`);
+    console.log(`From: support@sportz-widgets.com`);
+    console.log(`To: ${supportEmail}`);
+    console.log(`Subject: [Support Ticket ${newQueryId}] ${subject}`);
+    console.log(`Developer Name: ${name || 'Developer'}`);
+    console.log(`Developer Email: ${email || 'N/A'}`);
+    console.log(`Message Content:\n"${message}"`);
+    console.log(`======================================================\n`);
 
-  queries.push(newQuery);
+    if (useMongoDB) {
+      const newQuery = new SupportQueryModel({
+        id: newQueryId,
+        userId,
+        name: name || 'Developer',
+        email: email || 'N/A',
+        subject,
+        message,
+        status: 'pending',
+        forwardedTo: supportEmail,
+        timestamp: timestampStr
+      });
+      await newQuery.save();
+      return res.json({
+        success: true,
+        message: "Your support query has been logged. Our response team will review it shortly."
+      });
+    }
 
-  if (writeSupportQueries(queries)) {
-    res.json({
-      success: true,
-      message: "Your support query has been logged. Our response team will review it shortly."
-    });
-  } else {
-    res.status(500).json({ error: "Failed to save support query in the database." });
+    // Fallback file-based storage
+    const queries = readSupportQueries();
+    const newQuery = {
+      id: newQueryId,
+      userId,
+      name: name || 'Developer',
+      email: email || 'N/A',
+      subject,
+      message,
+      status: 'pending',
+      forwardedTo: supportEmail,
+      timestamp: timestampStr
+    };
+    queries.push(newQuery);
+
+    if (writeSupportQueries(queries)) {
+      res.json({
+        success: true,
+        message: "Your support query has been logged. Our response team will review it shortly."
+      });
+    } else {
+      res.status(500).json({ error: "Failed to save support query in the database." });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
 // --- ADMINISTRATIVE AUDITING & USER REGISTRY OVERRIDES ---
 
 // List all submitted developer support queries
-app.get('/api/admin/support/queries', (req, res) => {
-  res.json(readSupportQueries());
+app.get('/api/admin/support/queries', async (req, res) => {
+  try {
+    if (useMongoDB) {
+      const queries = await SupportQueryModel.find();
+      return res.json(queries);
+    }
+    res.json(readSupportQueries());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Update support query details (assigned assistant forwardedTo / status)
-app.post('/api/admin/support/queries/update', (req, res) => {
+app.post('/api/admin/support/queries/update', async (req, res) => {
   const { id, forwardedTo, status } = req.body;
   if (!id) {
     return res.status(400).json({ error: "Missing query ID" });
   }
 
-  const queries = readSupportQueries();
-  const idx = queries.findIndex(q => q.id === id);
-  if (idx === -1) {
-    return res.status(404).json({ error: "Support query not found" });
-  }
+  try {
+    if (useMongoDB) {
+      const query = await SupportQueryModel.findOne({ id });
+      if (!query) {
+        return res.status(404).json({ error: "Support query not found" });
+      }
 
-  if (forwardedTo !== undefined) {
-    queries[idx].forwardedTo = forwardedTo;
-  }
-  if (status !== undefined) {
-    queries[idx].status = status;
-  }
+      if (forwardedTo !== undefined) {
+        query.forwardedTo = forwardedTo;
+      }
+      if (status !== undefined) {
+        query.status = status;
+      }
 
-  if (writeSupportQueries(queries)) {
-    res.json({ success: true, query: queries[idx] });
-  } else {
-    res.status(500).json({ error: "Failed to update support query" });
+      await query.save();
+      return res.json({ success: true, query });
+    }
+
+    // Fallback file-based storage
+    const queries = readSupportQueries();
+    const idx = queries.findIndex(q => q.id === id);
+    if (idx === -1) {
+      return res.status(404).json({ error: "Support query not found" });
+    }
+
+    if (forwardedTo !== undefined) {
+      queries[idx].forwardedTo = forwardedTo;
+    }
+    if (status !== undefined) {
+      queries[idx].status = status;
+    }
+
+    if (writeSupportQueries(queries)) {
+      res.json({ success: true, query: queries[idx] });
+    } else {
+      res.status(500).json({ error: "Failed to update support query" });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
 // List all registered developer accounts
-app.get('/api/admin/users', (req, res) => {
-  const users = readUsers();
-  // Sanitize passwords out of response
-  const sanitized = users.map(u => ({
-    id: u.id,
-    name: u.name,
-    email: u.email,
-    country: u.country,
-    phone: u.phone,
-    address: u.address,
-    status: u.status,
-    licenseKey: u.licenseKey
-  }));
-  res.json(sanitized);
+app.get('/api/admin/users', async (req, res) => {
+  try {
+    let users;
+    if (useMongoDB) {
+      users = await UserModel.find();
+    } else {
+      users = readUsers();
+    }
+    // Sanitize passwords out of response
+    const sanitized = users.map(u => ({
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      country: u.country,
+      phone: u.phone,
+      address: u.address,
+      status: u.status,
+      licenseKey: u.licenseKey
+    }));
+    res.json(sanitized);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // List all registered license keys (active premium keys registry)
-app.get('/api/admin/licenses', (req, res) => {
-  res.json(readLicenses());
+app.get('/api/admin/licenses', async (req, res) => {
+  try {
+    if (useMongoDB) {
+      const licenses = await LicenseModel.find();
+      return res.json(licenses.map(l => l.key));
+    }
+    res.json(readLicenses());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Admin manual license creation
-app.post('/api/admin/licenses/create', (req, res) => {
+app.post('/api/admin/licenses/create', async (req, res) => {
   const { customSuffix } = req.body;
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   const genChunk = (len) => Array.from({ length: len }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
@@ -1269,98 +1554,179 @@ app.post('/api/admin/licenses/create', (req, res) => {
   const suffix = customSuffix ? customSuffix.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8) : genChunk(4);
   const newKey = `SZ-PRO-${suffix}-${genChunk(4)}`;
 
-  const activeLicenses = readLicenses();
-  activeLicenses.push(newKey);
+  try {
+    if (useMongoDB) {
+      const newLicense = new LicenseModel({ key: newKey });
+      await newLicense.save();
+      return res.json({ success: true, licenseKey: newKey });
+    }
 
-  if (writeLicenses(activeLicenses)) {
-    res.json({ success: true, licenseKey: newKey });
-  } else {
-    res.status(500).json({ error: "Failed to record manual key." });
+    // Fallback file-based storage
+    const activeLicenses = readLicenses();
+    activeLicenses.push(newKey);
+
+    if (writeLicenses(activeLicenses)) {
+      res.json({ success: true, licenseKey: newKey });
+    } else {
+      res.status(500).json({ error: "Failed to record manual key." });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
 // Admin manual license key revocation
-app.post('/api/admin/licenses/revoke', (req, res) => {
+app.post('/api/admin/licenses/revoke', async (req, res) => {
   const { licenseKey } = req.body;
 
   if (!licenseKey) {
     return res.status(400).json({ error: "Missing license key to revoke." });
   }
 
-  // 1. Remove from active licenses database
-  let activeLicenses = readLicenses();
-  activeLicenses = activeLicenses.filter(k => k !== licenseKey);
+  try {
+    if (useMongoDB) {
+      // 1. Remove from active licenses database
+      await LicenseModel.deleteOne({ key: licenseKey });
 
-  // 2. Scan and downgrade any user using this license key in users.json
-  const users = readUsers();
-  users.forEach(u => {
-    if (u.licenseKey === licenseKey) {
-      u.status = 'normal';
-      u.licenseKey = null;
+      // 2. Scan and downgrade any user using this license key
+      await UserModel.updateMany({ licenseKey }, { status: 'normal', licenseKey: null });
+
+      const settings = await SettingsModel.findOne();
+      const settingsObj = settings ? settings.toObject() : {};
+      broadcast('SETTINGS_UPDATE', settingsObj); // Force clear ad triggers
+      return res.json({ success: true, message: "License key successfully revoked." });
     }
-  });
 
-  if (writeLicenses(activeLicenses) && writeUsers(users)) {
-    broadcast('SETTINGS_UPDATE', readSettings()); // Force clear ad triggers
-    res.json({ success: true, message: "License key successfully revoked." });
-  } else {
-    res.status(500).json({ error: "Failed to persist revocation." });
+    // Fallback file-based storage
+    let activeLicenses = readLicenses();
+    activeLicenses = activeLicenses.filter(k => k !== licenseKey);
+
+    const users = readUsers();
+    users.forEach(u => {
+      if (u.licenseKey === licenseKey) {
+        u.status = 'normal';
+        u.licenseKey = null;
+      }
+    });
+
+    if (writeLicenses(activeLicenses) && writeUsers(users)) {
+      broadcast('SETTINGS_UPDATE', readSettings()); // Force clear ad triggers
+      res.json({ success: true, message: "License key successfully revoked." });
+    } else {
+      res.status(500).json({ error: "Failed to persist revocation." });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
 // Admin manual user status toggle
-app.post('/api/admin/users/toggle-status', (req, res) => {
+app.post('/api/admin/users/toggle-status', async (req, res) => {
   const { userId } = req.body;
 
   if (!userId) {
     return res.status(400).json({ error: "Missing user ID to toggle." });
   }
 
-  const users = readUsers();
-  const idx = users.findIndex(u => u.id === userId);
-  if (idx === -1) {
-    return res.status(404).json({ error: "User not found." });
-  }
+  try {
+    if (useMongoDB) {
+      const user = await UserModel.findOne({ id: userId });
+      if (!user) {
+        return res.status(404).json({ error: "User not found." });
+      }
 
-  const activeLicenses = readLicenses();
+      if (user.status === 'pro') {
+        const oldKey = user.licenseKey;
+        user.status = 'normal';
+        user.licenseKey = null;
+        await user.save();
 
-  if (users[idx].status === 'pro') {
-    // Downgrade to Normal
-    const oldKey = users[idx].licenseKey;
-    users[idx].status = 'normal';
-    users[idx].licenseKey = null;
+        if (oldKey) {
+          await LicenseModel.deleteOne({ key: oldKey });
+        }
+      } else {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        const genChunk = (len) => Array.from({ length: len }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+        const newKey = `SZ-PRO-${genChunk(4)}-${genChunk(4)}`;
 
-    if (oldKey) {
-      const filtered = activeLicenses.filter(k => k !== oldKey);
-      writeLicenses(filtered);
+        user.status = 'pro';
+        user.licenseKey = newKey;
+        await user.save();
+
+        const newLicense = new LicenseModel({ key: newKey });
+        await newLicense.save();
+      }
+
+      return res.json({ success: true, user });
     }
-  } else {
-    // Upgrade to Pro
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    const genChunk = (len) => Array.from({ length: len }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-    const newKey = `SZ-PRO-${genChunk(4)}-${genChunk(4)}`;
 
-    users[idx].status = 'pro';
-    users[idx].licenseKey = newKey;
-    activeLicenses.push(newKey);
-    writeLicenses(activeLicenses);
-  }
+    // Fallback file-based storage
+    const users = readUsers();
+    const idx = users.findIndex(u => u.id === userId);
+    if (idx === -1) {
+      return res.status(404).json({ error: "User not found." });
+    }
 
-  if (writeUsers(users)) {
-    res.json({ success: true, user: users[idx] });
-  } else {
-    res.status(500).json({ error: "Failed to toggle user subscription level." });
+    const activeLicenses = readLicenses();
+
+    if (users[idx].status === 'pro') {
+      // Downgrade to Normal
+      const oldKey = users[idx].licenseKey;
+      users[idx].status = 'normal';
+      users[idx].licenseKey = null;
+
+      if (oldKey) {
+        const filtered = activeLicenses.filter(k => k !== oldKey);
+        writeLicenses(filtered);
+      }
+    } else {
+      // Upgrade to Pro
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      const genChunk = (len) => Array.from({ length: len }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+      const newKey = `SZ-PRO-${genChunk(4)}-${genChunk(4)}`;
+
+      users[idx].status = 'pro';
+      users[idx].licenseKey = newKey;
+      activeLicenses.push(newKey);
+      writeLicenses(activeLicenses);
+    }
+
+    if (writeUsers(users)) {
+      res.json({ success: true, user: users[idx] });
+    } else {
+      res.status(500).json({ error: "Failed to toggle user subscription level." });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
-app.post('/api/settings', (req, res) => {
-  const currentSettings = readSettings();
-  const mergedSettings = { ...currentSettings, ...req.body };
-  if (writeSettings(mergedSettings)) {
-    broadcast('SETTINGS_UPDATE', mergedSettings);
-    res.json({ success: true, settings: mergedSettings });
-  } else {
-    res.status(500).json({ error: "Failed to write settings" });
+app.post('/api/settings', async (req, res) => {
+  try {
+    if (useMongoDB) {
+      let settings = await SettingsModel.findOne();
+      if (!settings) {
+        settings = new SettingsModel(req.body);
+      } else {
+        Object.assign(settings, req.body);
+      }
+      await settings.save();
+      const settingsObj = settings.toObject();
+      broadcast('SETTINGS_UPDATE', settingsObj);
+      return res.json({ success: true, settings: settingsObj });
+    }
+
+    // Fallback file-based storage
+    const currentSettings = readSettings();
+    const mergedSettings = { ...currentSettings, ...req.body };
+    if (writeSettings(mergedSettings)) {
+      broadcast('SETTINGS_UPDATE', mergedSettings);
+      res.json({ success: true, settings: mergedSettings });
+    } else {
+      res.status(500).json({ error: "Failed to write settings" });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
